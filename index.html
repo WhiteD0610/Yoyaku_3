@@ -1533,6 +1533,7 @@ function renderAdminList(d){
       `<td class="admin-name">${escapeHtml(u.name)}</td>`+
       `<td class="num">${u.totalHours}時間</td>`+
       `<td class="num">${u.activeSlots}枠</td>`+
+      `<td class="num">${u.bonusSlots ? '+'+u.bonusSlots : '—'}</td>`+
       `<td><input class="admin-lim" type="number" min="0" inputmode="numeric" `+
         `data-name="${escapeHtml(u.name)}" data-orig="${u.maxSlots}" value="${u.maxSlots}"></td>`+
     `</tr>`
@@ -1541,7 +1542,7 @@ function renderAdminList(d){
     (d.users&&d.users.length)
     ? `<table class="admin-table"><thead><tr>`+
         `<th>予約者</th><th style="text-align:right;">累計</th>`+
-        `<th style="text-align:right;">使用中</th><th>上限(枠)</th>`+
+        `<th style="text-align:right;">使用中</th><th style="text-align:right;">特典</th><th>上限(枠)</th>`+
       `</tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="empty-note">usersシートに予約者が登録されていません。</div>`;
 
