@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>機械予約</title>
+<style>
+  :root{
+    --bg:#eef1f4;
+    --panel:#ffffff;
+    --ink:#1f2733;
+    --ink-soft:#5c6b7a;
+    --line:#dde3ea;
+    --accent:#2f6f9e;
+    --accent-soft:#e7f0f7;
+    --free:#2f9e6f;   --free-bg:#e6f6ef;
+    --some:#c98a1e;   --some-bg:#fbf1dd;
+    --full:#cf5148;   --full-bg:#fae7e5;
+    --taken:#f4d3cf;
+    --shadow:0 1px 3px rgba(20,30,45,.08),0 6px 20px rgba(20,30,45,.06);
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.6;-webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 64px;}
+  header h1{font-size:20px;margin:6px 0 2px;letter-spacing:.02em;}
+  header p{margin:0 0 18px;color:var(--ink-soft);font-size:13px;}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:16px;margin-bottom:16px;
+  }
+  .card h2{font-size:14px;margin:0 0 12px;color:var(--ink-soft);font-weight:600;letter-spacing:.03em;}
+
+  /* --- フォーム部品 --- */
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px;}
+  .field input, .field select{
+    width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;
+    background:#fff;color:var(--ink);font-family:inherit;
+  }
+  .field select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' stroke='%235c6b7a' stroke-width='2' fill='none'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;}
+  .field input:focus, .field select:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent);}
+  .req{color:var(--full);font-weight:700;}
+  .btn{
+    width:100%;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:600;
+    background:var(--accent);color:#fff;cursor:pointer;font-family:inherit;
+  }
+  .btn:disabled{background:#a9bccb;cursor:default;}
+  .btn.ghost{background:#fff;color:var(--accent);border:1px solid var(--line);}
+  .btn.sm{padding:8px 12px;font-size:13px;width:auto;}
+
+  .quota-note{
+    font-size:12px;color:var(--ink-soft);background:var(--bg);
+    border-radius:8px;padding:7px 10px;margin:0;
+  }
+  .quota-note.zero{color:var(--full);background:var(--full-bg);font-weight:600;}
+  .quota-note b{color:var(--accent);}
+  .quota-note.zero b{color:var(--full);}
+  .row-between{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:10px;}
+
+  /* --- カレンダー --- */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .cal-head .month{font-size:16px;font-weight:600;}
+  .navbtn{
+    border:1px solid var(--line);background:#fff;border-radius:8px;
+    width:36px;height:36px;font-size:16px;cursor:pointer;color:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .navbtn:active{background:var(--bg);}
+  .window-note{
+    font-size:12px;color:var(--accent);background:var(--accent-soft);
+    border-radius:8px;padding:7px 10px;margin-bottom:10px;text-align:center;font-weight:600;
+  }
+  .grid7{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .dow{text-align:center;font-size:11px;color:var(--ink-soft);padding:4px 0;}
+  .dow.sun{color:var(--full);} .dow.sat{color:var(--accent);}
+  .day{
+    position:relative;border:1px solid transparent;border-radius:10px;
+    padding:6px 2px 4px;text-align:center;cursor:pointer;background:#fbfcfd;
+    min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;
+  }
+  .day.empty{background:transparent;cursor:default;}
+  .day .num{font-size:13px;font-variant-numeric:tabular-nums;}
+  .day .mark{font-size:15px;font-weight:700;line-height:1;}
+  .day.past{opacity:.4;cursor:default;}
+  .day.past .mark{color:var(--ink-soft);}
+  .day.locked{opacity:.55;cursor:default;background:#f4f6f8;}
+  .day.locked .mark{color:#b7c0cb;font-size:12px;}
+  .day.sel{border-color:var(--accent);background:var(--accent-soft);}
+  .day .mk-free{color:var(--free);} .day .mk-some{color:var(--some);} .day .mk-full{color:var(--full);}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--ink-soft);}
+  .legend span{display:inline-flex;align-items:center;gap:4px;}
+  .legend b{font-size:14px;}
+
+  /* --- 機械タブ --- */
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;}
+  .tab{
+    flex:1 1 auto;min-width:88px;border:1px solid var(--line);background:#fff;border-radius:10px;
+    padding:10px 8px;font-size:14px;cursor:pointer;color:var(--ink);text-align:center;font-family:inherit;
+  }
+  .tab.sel{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+
+  /* --- 時間枠グリッド --- */
+  .slots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+  @media(max-width:480px){ .slots{grid-template-columns:repeat(3,minmax(0,1fr));} }
+  .slot{
+    border:1px solid var(--line);border-radius:10px;background:#fff;
+    padding:9px 4px;text-align:center;cursor:pointer;position:relative;font-variant-numeric:tabular-nums;
+    min-width:0;overflow:hidden;
+  }
+  .slot .t{font-size:14px;font-weight:600;}
+  .slot .s{font-size:11px;color:var(--ink-soft);margin-top:1px;}
+  .slot.free:active{background:var(--accent-soft);}
+  .slot.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .slot.sel .s{color:#dbe8f2;}
+  .slot.taken{background:var(--full-bg);border-color:var(--taken);cursor:pointer;}
+  .slot.taken .t{color:var(--full);}
+  .slot.taken .s{color:var(--full);}
+  .slot .who{
+    font-size:10px;color:var(--ink-soft);margin-top:2px;line-height:1.25;
+    max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word;
+  }
+  .slot.taken .who{color:#a24039;}
+  .slot .fil{
+    font-size:9px;color:#b07a74;margin-top:1px;line-height:1.25;
+    max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word;
+  }
+  .slot.disabled{opacity:.4;cursor:default;}
+
+  /* --- フィラメント選択（写真つきカード） --- */
+  .fpick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+  @media(max-width:520px){ .fpick-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
+  .fpick{
+    border:1px solid var(--line);border-radius:10px;background:#fff;padding:6px;
+    cursor:pointer;text-align:center;position:relative;overflow:hidden;min-width:0;
+  }
+  .fpick.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent) inset;}
+  .fpick.busy{opacity:.45;cursor:default;}
+  .fpick-img{
+    width:100%;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#f3f6f8;
+    display:flex;align-items:center;justify-content:center;margin-bottom:5px;
+  }
+  .fpick-img img{width:100%;height:100%;object-fit:cover;display:block;}
+  .fpick-swatch{width:56%;height:56%;border-radius:50%;border:1px solid rgba(0,0,0,.12);}
+  .fpick-name{
+    font-size:11px;font-weight:600;line-height:1.3;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .fpick-sub{font-size:10px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fpick-badge{
+    position:absolute;top:6px;left:6px;right:6px;background:rgba(31,39,51,.74);color:#fff;
+    font-size:9px;line-height:1.25;padding:2px 5px;border-radius:5px;text-align:left;
+    overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  }
+  .fpick-busy{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(250,231,229,.82);color:var(--full);font-size:10px;font-weight:700;text-align:center;padding:4px;
+  }
+
+  /* --- 予約サマリ --- */
+  .summary{font-size:14px;background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:12px;}
+  .summary b{color:var(--accent);}
+  .hint{color:var(--ink-soft);font-size:12px;margin-top:8px;}
+  .empty-note{color:var(--ink-soft);font-size:13px;padding:8px 0;}
+
+  /* --- フィラメント管理 --- */
+  .fil-group{margin-bottom:18px;}
+  .fil-group h4{font-size:13px;margin:0 0 8px;color:var(--accent);font-weight:600;}
+  .fil-item{
+    display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);
+    border-radius:10px;margin-bottom:6px;background:#fff;
+  }
+  .fil-thumb{
+    width:42px;height:42px;border-radius:8px;flex:0 0 auto;overflow:hidden;background:#f3f6f8;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .fil-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .fil-chip{width:20px;height:20px;border-radius:50%;border:1px solid rgba(0,0,0,.15);}
+  .fil-body{flex:1 1 auto;min-width:0;}
+  .fil-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fil-meta{font-size:11px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fil-acts{display:flex;gap:6px;flex:0 0 auto;}
+  .icon-btn{
+    border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 9px;
+    font-size:12px;cursor:pointer;color:var(--ink-soft);font-family:inherit;
+  }
+  .icon-btn.del{color:var(--full);border-color:var(--taken);}
+  .fil-form{border:1px dashed var(--line);border-radius:10px;padding:12px;margin-top:8px;background:#fbfcfd;}
+  .fil-form .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  @media(max-width:420px){ .fil-form .grid2{grid-template-columns:1fr;} }
+  .photo-row{display:flex;gap:10px;align-items:center;}
+  .photo-prev{
+    width:64px;height:64px;border-radius:10px;background:#f3f6f8;flex:0 0 auto;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink-soft);
+  }
+  .photo-prev img{width:100%;height:100%;object-fit:cover;display:block;}
+  .photo-btns{display:flex;flex-direction:column;gap:6px;}
+  .sharer-row{display:flex;gap:8px;align-items:center;}
+  .sharer-row select{
+    flex:1 1 auto;padding:9px 10px;border:1px solid var(--line);border-radius:10px;
+    font-size:14px;background:#fff;color:var(--ink);font-family:inherit;
+  }
+  .sharer-row .btn{flex:0 0 auto;}
+  .sharer-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .chip{
+    display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);
+    color:var(--accent);border-radius:999px;padding:3px 6px 3px 10px;font-size:12px;font-weight:600;
+  }
+  .chip-x{
+    border:none;background:rgba(47,111,158,.18);color:var(--accent);border-radius:50%;
+    width:18px;height:18px;line-height:1;cursor:pointer;font-size:12px;padding:0;font-family:inherit;
+  }
+
+  /* --- モーダル --- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,30,45,.45);
+    display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;
+  }
+  .modal{
+    background:#fff;border-radius:14px;padding:20px;max-width:340px;width:100%;
+    box-shadow:0 12px 44px rgba(0,0,0,.28);
+  }
+  .modal.wide{max-width:520px;max-height:86vh;overflow-y:auto;}
+  .modal h3{margin:0 0 12px;font-size:16px;}
+  .modal-info{font-size:14px;background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:14px;}
+  .modal-actions{display:flex;gap:10px;}
+  .modal-actions .btn{flex:1;}
+
+  #toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:#1f2733;color:#fff;padding:11px 18px;border-radius:10px;font-size:14px;
+    opacity:0;pointer-events:none;transition:.25s;max-width:90%;text-align:center;z-index:80;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #toast.err{background:#a23a33;}
+
+  .loading{color:var(--ink-soft);font-size:13px;display:flex;align-items:center;gap:8px;}
+  .spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  .hidden{display:none !important;}
+
+  /* --- 管理者ページ --- */
+  .admin-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .admin-table th{
+    text-align:left;font-size:11px;color:var(--ink-soft);font-weight:600;
+    padding:6px 8px;border-bottom:1px solid var(--line);
+  }
+  .admin-table td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  .admin-table td.num{font-variant-numeric:tabular-nums;color:var(--ink-soft);text-align:right;white-space:nowrap;}
+  .admin-name{font-weight:600;}
+  .admin-lim{
+    width:70px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;text-align:center;font-variant-numeric:tabular-nums;font-family:inherit;
+  }
+  .admin-lim.changed{border-color:var(--accent);background:var(--accent-soft);}
+  .admin-dates{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
+  .admin-sec-label{display:block;font-size:12px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .date-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .date-ctl input[type=date]{
+    flex:1 1 auto;min-width:150px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;background:#fff;color:var(--ink);font-family:inherit;
+  }
+  .ov-item{
+    display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);
+    border-radius:8px;margin-bottom:6px;background:#fff;font-size:13px;
+  }
+  .ov-item .ov-date{font-variant-numeric:tabular-nums;font-weight:600;flex:0 0 auto;}
+  .ov-mode{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;flex:0 0 auto;}
+  .ov-mode.open{color:var(--free);background:var(--free-bg);}
+  .ov-mode.lock{color:var(--full);background:var(--full-bg);}
+  .ov-item .icon-btn{margin-left:auto;}
+
+  /* --- QRチェックイン --- */
+  .checkin-box{
+    margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);
+  }
+  .checkin-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .checkin-label{font-size:12px;color:var(--ink-soft);font-weight:600;}
+  .checkin-dots{display:flex;gap:5px;margin-left:2px;}
+  .checkin-dots i{
+    width:14px;height:14px;border-radius:50%;border:1px solid var(--line);background:#fff;display:block;
+  }
+  .checkin-dots i.on{background:var(--accent);border-color:var(--accent);}
+  .checkin-box .btn.sm{margin-left:auto;}
+  .checkin-msg{font-size:12px;color:var(--ink-soft);margin-top:7px;}
+  .checkin-msg.done{color:var(--free);font-weight:600;}
+
+  .scan-frame{
+    position:relative;width:100%;aspect-ratio:1/1;max-height:60vh;background:#111;
+    border-radius:10px;overflow:hidden;margin-bottom:10px;
+  }
+  .scan-frame video{width:100%;height:100%;object-fit:cover;display:block;}
+  .scan-frame .reticle{
+    position:absolute;inset:18%;border:2px solid rgba(255,255,255,.85);border-radius:12px;
+    box-shadow:0 0 0 9999px rgba(0,0,0,.35);
+  }
+  .scan-status{font-size:13px;color:var(--ink-soft);margin-bottom:10px;text-align:center;}
+  .scan-status.err{color:var(--full);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>機械予約</h1>
+    <p>予約者を選び、日付・機械・時間枠・フィラメントを選んで予約します（連続は最大2時間）。</p>
+  </header>
+
+  <!-- 予約者（常設） -->
+  <section class="card" id="userCard">
+    <div class="field" style="margin-bottom:8px;">
+      <label for="userSelect">予約者</label>
+      <select id="userSelect"><option value="">読み込み中…</option></select>
+    </div>
+    <div id="quotaNote" class="quota-note hidden"></div>
+    <div id="checkinBox" class="checkin-box hidden">
+      <div class="checkin-top">
+        <span class="checkin-label">チェックイン</span>
+        <div class="checkin-dots" id="checkinDots"></div>
+        <button class="btn ghost sm" id="openScanBtn">QRを読み取る</button>
+      </div>
+      <div class="checkin-msg" id="checkinMsg"></div>
+    </div>
+    <div class="row-between">
+      <span class="hint" style="margin:0;">フィラメントの登録・編集はこちら →</span>
+      <button class="btn ghost sm" id="openFilBtn">フィラメント管理</button>
+    </div>
+  </section>
+
+  <!-- カレンダー -->
+  <section class="card">
+    <div class="cal-head">
+      <button class="navbtn" id="prevM" aria-label="前の月">‹</button>
+      <div class="month" id="monthLabel">—</div>
+      <button class="navbtn" id="nextM" aria-label="次の月">›</button>
+    </div>
+    <div id="windowNote" class="window-note hidden"></div>
+    <div class="grid7" id="dowRow"></div>
+    <div class="grid7" id="calBody" style="margin-top:4px;"></div>
+    <div id="calLoading" class="loading hidden" style="margin-top:10px;"><span class="spin"></span>混み状況を読み込み中…</div>
+    <div class="legend">
+      <span><b style="color:var(--free);">〇</b> 空きあり</span>
+      <span><b style="color:var(--some);">△</b> やや混雑</span>
+      <span><b style="color:var(--full);">✕</b> 混雑</span>
+      <span><b style="color:#b7c0cb;">🔒</b> 未解放</span>
+    </div>
+  </section>
+
+  <!-- 機械選択 + 時間枠 -->
+  <section class="card" id="daySection">
+    <h2 id="daySectionTitle">日付を選んでください</h2>
+    <div class="tabs" id="machineTabs"></div>
+    <div id="slotArea" style="margin-top:14px;">
+      <div class="empty-note">日付を選ぶと空き時間枠が表示されます。</div>
+    </div>
+    <div id="slotLoading" class="loading hidden" style="margin-top:8px;"><span class="spin"></span>空き状況を確認中…</div>
+  </section>
+
+  <!-- 予約確定 -->
+  <section class="card hidden" id="reserveSection">
+    <h2>この内容で予約</h2>
+    <div class="summary" id="reserveSummary"></div>
+    <div class="field">
+      <label>使用するフィラメント <span class="req">*</span></label>
+      <div id="filPicker" class="fpick-grid"></div>
+      <div class="hint" id="filPickHint"></div>
+    </div>
+    <div class="field">
+      <label for="passInput">キャンセル用パスワード <span class="req">*</span></label>
+      <input id="passInput" type="password" placeholder="キャンセル時に使う合言葉" autocomplete="off">
+    </div>
+    <button class="btn" id="reserveBtn">予約する</button>
+    <div class="hint">※ 同じ時間に同じフィラメントを別の機械では使えません。キャンセルは予約枠をもう一度タップし、このパスワードを入力します。大事なパスワードの使い回しは避けてください。</div>
+  </section>
+</div>
+
+<!-- キャンセル用モーダル -->
+<div id="cancelModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>予約をキャンセル</h3>
+    <div class="modal-info" id="cancelInfo"></div>
+    <div class="field">
+      <label for="cancelPass">予約時のパスワード</label>
+      <input id="cancelPass" type="password" placeholder="パスワード" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="cancelModalClose">閉じる</button>
+      <button class="btn" id="cancelModalExec">キャンセルする</button>
+    </div>
+  </div>
+</div>
+
+<!-- フィラメント管理モーダル -->
+<div id="filModal" class="modal-overlay hidden">
+  <div class="modal wide">
+    <h3>フィラメント管理</h3>
+    <div class="fil-group">
+      <h4 id="ownFilTitle">自分のフィラメント</h4>
+      <div id="ownFilList"></div>
+      <button class="btn ghost sm" id="addOwnBtn">＋ 自分のフィラメントを追加</button>
+    </div>
+    <div class="fil-group">
+      <h4>共用フィラメント（全員が使えます）</h4>
+      <div id="sharedFilList"></div>
+      <button class="btn ghost sm" id="addSharedBtn">＋ 共用フィラメントを追加</button>
+    </div>
+    <div id="filFormArea"></div>
+    <div class="modal-actions" style="margin-top:10px;">
+      <button class="btn ghost" id="filModalClose">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- QRチェックイン用モーダル -->
+<div id="scanModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>QRチェックイン</h3>
+    <div class="scan-frame" id="scanFrame">
+      <video id="scanVideo" playsinline muted autoplay></video>
+      <div class="reticle"></div>
+    </div>
+    <div class="scan-status" id="scanStatus">カメラを起動しています…</div>
+    <div class="field">
+      <label for="scanManual">読み取れないときは合言葉を直接入力</label>
+      <input id="scanManual" type="text" placeholder="QRの下に書かれた文字列" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="scanModalClose">閉じる</button>
+      <button class="btn" id="scanManualExec">送信</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- 管理者パスワード入力 -->
+<div id="adminGate" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>管理者ページ</h3>
+    <div class="field">
+      <label for="adminPass">管理者パスワード</label>
+      <input id="adminPass" type="password" placeholder="パスワード" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="adminGateClose">閉じる</button>
+      <button class="btn" id="adminGateExec">開く</button>
+    </div>
+  </div>
+</div>
+
+<!-- 管理者ページ本体 -->
+<div id="adminModal" class="modal-overlay hidden">
+  <div class="modal wide">
+    <h3>管理者ページ</h3>
+    <div class="field" style="margin-bottom:14px;">
+      <label for="adminMaxHours">連続予約数の上限（時間・全員共通）</label>
+      <input id="adminMaxHours" class="admin-lim" type="number" min="1" inputmode="numeric" data-orig="" style="width:90px;">
+    </div>
+    <div class="hint" style="margin-bottom:10px;">下は予約者ごとの累計予約時間と、予約できる枠数の上限です。上限を変えたら「保存」を押してください。空欄にすると既定値（<span id="adminDefault">20</span>枠）に戻ります。</div>
+    <div id="adminList"></div>
+    <div class="admin-dates">
+      <label class="admin-sec-label">予約日の個別設定</label>
+      <div class="hint" style="margin:0 0 8px;">未開放の日を先に解放したり、解放中の日を再ロックできます。指定は全員に反映されます。</div>
+      <div class="date-ctl">
+        <input id="ovDate" type="date">
+        <button class="btn ghost sm" id="ovOpenBtn">解放</button>
+        <button class="btn ghost sm" id="ovLockBtn">再ロック</button>
+      </div>
+      <div id="ovList" style="margin-top:10px;"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn ghost" id="adminModalClose">閉じる</button>
+      <button class="btn" id="adminSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   設定: デプロイした GAS ウェブアプリの URL(/exec) をここに貼る
+   ============================================================ */
+const GAS_URL = 'ここにGASウェブアプリのURL(/exec)を貼る';
+
+/* ---- API 呼び出し ---- */
+async function api(payload){
+  const res = await fetch(GAS_URL, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || '処理に失敗しました');
+  return data;
+}
+
+/* ---- 状態 ---- */
+const state = {
+  viewYear:0, viewMonth:0,
+  monthCounts:{}, slotsPerDay:0,
+  windowStart:null, windowEnd:null, serverToday:null, openDates:[],
+  machines:[], openHour:0, closeHour:24, maxHours:2,
+  users:[],
+  ownFilaments:[], sharedFilaments:[], sharedWithMe:[],
+  filamentBusy:{},
+  selectedFilamentId:'',
+  selectedDate:null,
+  selectedMachine:null,
+  dayReservations:[],
+  selectedHours:[],
+  adminSeq:[],         // 機械ボタンのクリック履歴（隠しコマンド判定用）
+  adminPass:'',        // 認証済みの管理者パスワードを一時保持
+  adminOverrides:{}    // 予約日の個別設定
+};
+
+const DOW = ['日','月','火','水','木','金','土'];
+const $ = id => document.getElementById(id);
+
+/* 予約者は常にプルダウンの実値を読む（状態のズレを防ぐ） */
+function currentUser(){ return ($('userSelect').value || '').trim(); }
+
+/* ---- ユーティリティ ---- */
+function pad(n){ return (n<10?'0':'')+n; }
+function ymd(y,m,d){ return y+'-'+pad(m+1)+'-'+pad(d); }
+function todayLocal(){ const t=new Date(); return ymd(t.getFullYear(),t.getMonth(),t.getDate()); }
+function monthStr(y,m){ return y+'-'+pad(m+1); }
+function hourLabel(h){ return pad(h)+':00'; }
+function mdLabel(ds){ const p=ds.split('-'); return Number(p[1])+'/'+Number(p[2]); }
+function slotStartMs(ds,h){ const p=ds.split('-'); return new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),h,0,0).getTime(); }
+function rangeLabel(hours){
+  const s=Math.min(...hours), e=Math.max(...hours)+1;
+  return pad(s)+':00〜'+pad(e)+':00';
+}
+function machineLabel(key){
+  const m=state.machines.find(x=>x.key===key); return m?m.label:key;
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>(
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function allFilaments(){ return state.ownFilaments.concat(state.sharedWithMe, state.sharedFilaments); }
+function filamentById(id){ return allFilaments().find(f=>f.id===id) || null; }
+function filName(f){ return [f.material,f.color].filter(Boolean).join(' ') || f.label || ''; }
+
+let toastTimer=null;
+function toast(msg, isErr){
+  const t=$('toast'); t.textContent=msg;
+  t.className='show'+(isErr?' err':'');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{ t.className=''; }, 3200);
+}
+
+/* 色名やコードをCSSの色に。不明なら灰色 */
+function colorToCss(c){
+  const s=String(c).trim();
+  if(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return s;
+  const map={'白':'#ffffff','黒':'#222222','赤':'#d94b45','青':'#3a72c4','緑':'#3aa06a','黄':'#e3c04a',
+             '橙':'#e08a3c','オレンジ':'#e08a3c','紫':'#8f7ff0','灰':'#9aa5b1','グレー':'#9aa5b1',
+             'ピンク':'#e58fb0','透明':'#dfe7ee','クリア':'#dfe7ee','金':'#c9a227','銀':'#b9c0c7',
+             'white':'#ffffff','black':'#222222','red':'#d94b45','blue':'#3a72c4','green':'#3aa06a',
+             'yellow':'#e3c04a','orange':'#e08a3c','purple':'#8f7ff0','gray':'#9aa5b1','grey':'#9aa5b1'};
+  return map[s] || map[s.toLowerCase()] || '#c7d0d9';
+}
+
+/* ============================================================
+   初期化
+   ※ イベント登録を最初に済ませてから通信する。
+     （読み込み中に予約者を選んでも取りこぼさないようにするため）
+   ============================================================ */
+async function init(){
+  $('dowRow').innerHTML = DOW.map((d,i)=>
+    `<div class="dow ${i===0?'sun':''}${i===6?'sat':''}">${d}</div>`).join('');
+
+  // --- イベント登録（通信より先に行う） ---
+  $('prevM').onclick=()=>changeMonth(-1);
+  $('nextM').onclick=()=>changeMonth(1);
+  $('reserveBtn').onclick=doReserve;
+  $('userSelect').onchange=onUserChange;
+  $('openFilBtn').onclick=openFilModal;
+  $('filModalClose').onclick=()=>$('filModal').classList.add('hidden');
+  $('addOwnBtn').onclick=()=>showFilForm({owner:'own'});
+  $('addSharedBtn').onclick=()=>showFilForm({owner:'shared'});
+  $('cancelModalClose').onclick=closeCancelModal;
+  $('cancelModalExec').onclick=execCancel;
+  $('cancelModal').addEventListener('click', e=>{ if(e.target.id==='cancelModal') closeCancelModal(); });
+  $('adminGateClose').onclick=()=>$('adminGate').classList.add('hidden');
+  $('adminGateExec').onclick=submitAdminGate;
+  $('adminModalClose').onclick=()=>$('adminModal').classList.add('hidden');
+  $('adminSaveBtn').onclick=saveAdminLimits;
+  $('openScanBtn').onclick=openScanModal;
+  $('scanModalClose').onclick=closeScanModal;
+  $('scanModal').addEventListener('click', e=>{ if(e.target.id==='scanModal') closeScanModal(); });
+  $('scanManualExec').onclick=()=>submitCheckin(($('scanManual').value||'').trim());
+  $('scanManual').addEventListener('keydown', e=>{ if(e.key==='Enter') $('scanManualExec').click(); });
+  $('ovOpenBtn').onclick=()=>applyOverride('open');
+  $('ovLockBtn').onclick=()=>applyOverride('lock');
+
+  const now=new Date();
+  state.viewYear=now.getFullYear();
+  state.viewMonth=now.getMonth();
+
+  // --- 設定・カレンダー・利用者一覧を1回の通信でまとめて取得 ---
+  const month = monthStr(state.viewYear, state.viewMonth);
+  $('monthLabel').textContent = state.viewYear+'年 '+(state.viewMonth+1)+'月';
+  $('calLoading').classList.remove('hidden');
+
+  let boot;
+  try{
+    boot = await api({action:'bootstrap', month:month});
+  }catch(e){
+    $('calLoading').classList.add('hidden');
+    toast('サーバに接続できません。URL設定を確認してください。', true);
+    return;
+  }
+  $('calLoading').classList.add('hidden');
+
+  // 1) カレンダー
+  const md = boot.month || {};
+  state.monthCounts=md.counts||{};
+  state.slotsPerDay=md.slotsPerDay||0;
+  state.windowStart=md.windowStart||null;
+  state.windowEnd=md.windowEnd||null;
+  state.serverToday=md.today||null;
+  state.openDates=md.openDates||[];
+  renderCalendar();
+
+  // 2) 設定（機械タブ）
+  const cfg = boot.config || {};
+  state.machines=cfg.machines||[]; state.openHour=cfg.openHour||0;
+  state.closeHour=cfg.closeHour||24; state.maxHours=cfg.maxHours||2;
+  renderMachineTabs();
+
+  // 3) 利用者一覧（記憶した予約者があれば裏でフィラメント等を読み込む）
+  applyUsers({users: boot.users || []});
+}
+
+/* ---- 予約者一覧 ---- */
+async function loadUsers(){
+  let d;
+  try{ d = await api({action:'listUsers'}); }
+  catch(e){ d = {users:[]}; }
+  applyUsers(d);
+}
+
+// 取得済みの利用者一覧を画面に反映（初期化の並列取得からも呼ぶ）
+function applyUsers(d){
+  state.users = (d && d.users) || [];
+  const sel=$('userSelect');
+  if(state.users.length===0){
+    sel.innerHTML='<option value="">（usersシートに名前を追加してください）</option>';
+    return;
+  }
+  const saved = localStorage.getItem('resv_user') || '';
+  sel.innerHTML = '<option value="">選択してください</option>' +
+    state.users.map(u=>`<option value="${escapeHtml(u)}"${u===saved?' selected':''}>${escapeHtml(u)}</option>`).join('');
+  // 記憶した予約者の残枠・フィラメントは裏で読み込む（カレンダー表示を妨げない）
+  if(saved && state.users.includes(saved)) onUserChange();
+}
+
+async function onUserChange(){
+  const name=currentUser();
+  if(name) localStorage.setItem('resv_user', name);
+  state.selectedFilamentId='';
+  await Promise.all([refreshQuota(), loadFilaments(), refreshCheckin()]);
+  renderFilPicker();
+}
+
+/* ---- 残り予約可能枠 ---- */
+async function refreshQuota(){
+  const name=currentUser();
+  const el=$('quotaNote');
+  if(!name){ el.classList.add('hidden'); return; }
+  try{
+    const d=await api({action:'quota', name:name});
+    el.innerHTML=`「${escapeHtml(name)}」さん：あと <b>${d.remaining}</b> 枠（${d.max}枠中 ${d.used}枠 使用中）`;
+    el.classList.remove('hidden');
+    el.classList.toggle('zero', d.remaining<=0);
+  }catch(e){
+    el.classList.add('hidden');
+  }
+}
+
+/* ============================================================
+   QRチェックイン
+   1日1回まで記録でき、累計5日ごとに予約枠が12枠増える。
+   判定と付与はすべてGAS側で行う（端末側の記録は信用しない）。
+   ============================================================ */
+const CHECKIN_NEED = 5;      // 表示用。実際の判定はサーバ側の値を使う
+const JSQR_CDN = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+
+const scan = { stream:null, detector:null, raf:0, busy:false, need:CHECKIN_NEED };
+
+async function refreshCheckin(){
+  const name=currentUser();
+  const box=$('checkinBox');
+  if(!name){ box.classList.add('hidden'); return; }
+  try{
+    const d=await api({action:'checkinStatus', name:name});
+    renderCheckin(d);
+    box.classList.remove('hidden');
+  }catch(e){
+    box.classList.add('hidden');
+  }
+}
+
+function renderCheckin(d){
+  const need = Number(d.need) || CHECKIN_NEED;
+  const bonus = Number(d.bonusSlots) || 12;
+  const prog = Math.max(0, Math.min(need, Number(d.progress)||0));
+  scan.need = need;
+  $('checkinDots').innerHTML =
+    Array.from({length:need}, (_,i)=>`<i class="${i<prog?'on':''}"></i>`).join('');
+  const msg=$('checkinMsg');
+  const rest = need - prog;
+  if(d.doneToday){
+    msg.className='checkin-msg done';
+    msg.textContent = `今日はチェックイン済みです（あと${rest}日で+${bonus}枠）`;
+  }else{
+    msg.className='checkin-msg';
+    msg.textContent = `今日はまだです。あと${rest}日で予約枠が${bonus}枠もらえます。`;
+  }
+  $('openScanBtn').disabled = !!d.doneToday;
+  const total = Number(d.bonusTotal)||0;
+  if(total>0) msg.textContent += `／これまでの獲得: ${total}枠`;
+}
+
+/* ---- スキャナ ---- */
+function scanStatus(text, isErr){
+  const el=$('scanStatus');
+  el.textContent=text;
+  el.className='scan-status'+(isErr?' err':'');
+}
+
+async function openScanModal(){
+  if(!currentUser()){ toast('先に予約者を選んでください。', true); return; }
+  $('scanManual').value='';
+  $('scanModal').classList.remove('hidden');
+  scan.busy=false;
+  scanStatus('カメラを起動しています…');
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    scanStatus('この端末ではカメラを使えません。下の欄に合言葉を入力してください。', true);
+    return;
+  }
+  try{
+    scan.stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ ideal:'environment' } }, audio:false
+    });
+  }catch(e){
+    scanStatus('カメラを使えませんでした（権限またはHTTPS未対応）。下の欄に合言葉を入力してください。', true);
+    return;
+  }
+  const v=$('scanVideo');
+  v.srcObject=scan.stream;
+  try{ await v.play(); }catch(e){}
+
+  // 読み取りエンジン: 標準APIがあれば優先、無ければjsQRを読み込む
+  try{
+    if('BarcodeDetector' in window){
+      const fmts = await window.BarcodeDetector.getSupportedFormats();
+      if(fmts.includes('qr_code')) scan.detector = new window.BarcodeDetector({formats:['qr_code']});
+    }
+    if(!scan.detector) await loadJsQR();
+  }catch(e){
+    scanStatus('読み取り機能を用意できませんでした。合言葉を入力してください。', true);
+    return;
+  }
+  scanStatus('QRコードを枠内に写してください。');
+  scan.raf = requestAnimationFrame(scanTick);
+}
+
+function loadJsQR(){
+  if(window.jsQR) return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src=JSQR_CDN;
+    s.onload=()=>resolve();
+    s.onerror=()=>reject(new Error('jsQR load failed'));
+    document.head.appendChild(s);
+  });
+}
+
+let scanCanvas=null;
+async function scanTick(){
+  const v=$('scanVideo');
+  if(!scan.stream || scan.busy){ return; }
+  if(v.readyState >= 2){
+    let text='';
+    try{
+      if(scan.detector){
+        const codes = await scan.detector.detect(v);
+        if(codes && codes.length) text = codes[0].rawValue || '';
+      }else if(window.jsQR){
+        if(!scanCanvas) scanCanvas=document.createElement('canvas');
+        const w=Math.min(v.videoWidth, 640);
+        const h=Math.round(v.videoHeight * (w/v.videoWidth)) || 480;
+        scanCanvas.width=w; scanCanvas.height=h;
+        const ctx=scanCanvas.getContext('2d', {willReadFrequently:true});
+        ctx.drawImage(v,0,0,w,h);
+        const img=ctx.getImageData(0,0,w,h);
+        const r=window.jsQR(img.data, w, h, {inversionAttempts:'dontInvert'});
+        if(r && r.data) text=r.data;
+      }
+    }catch(e){ /* 1フレーム失敗は無視 */ }
+    if(text){ submitCheckin(text); return; }
+  }
+  scan.raf = requestAnimationFrame(scanTick);
+}
+
+function stopScan(){
+  cancelAnimationFrame(scan.raf);
+  scan.raf=0;
+  if(scan.stream){
+    scan.stream.getTracks().forEach(t=>t.stop());
+    scan.stream=null;
+  }
+  const v=$('scanVideo');
+  if(v) v.srcObject=null;
+  scan.detector=null;
+}
+
+function closeScanModal(){
+  stopScan();
+  $('scanModal').classList.add('hidden');
+}
+
+async function submitCheckin(token){
+  if(scan.busy) return;
+  if(!token){ toast('合言葉を入力してください。', true); return; }
+  const name=currentUser();
+  if(!name){ toast('先に予約者を選んでください。', true); return; }
+  scan.busy=true;
+  scanStatus('確認中…');
+  try{
+    const d=await api({action:'checkin', name:name, token:token});
+    stopScan();
+    $('scanModal').classList.add('hidden');
+    if(d.granted){
+      toast(`チェックイン完了！ 予約枠が${d.granted}枠増えました。`);
+    }else if(d.already){
+      toast('今日はすでにチェックイン済みです。');
+    }else{
+      const rest=(Number(d.need)||scan.need)-(Number(d.progress)||0);
+      toast(`チェックイン完了。あと${rest}日で枠がもらえます。`);
+    }
+    renderCheckin(d);
+    $('checkinBox').classList.remove('hidden');
+    await refreshQuota();
+  }catch(e){
+    scanStatus(e.message || 'チェックインに失敗しました。', true);
+    setTimeout(()=>{
+      scan.busy=false;
+      if(scan.stream){
+        scanStatus('QRコードを枠内に写してください。');
+        scan.raf=requestAnimationFrame(scanTick);
+      }
+    }, 1500);
+    return;
+  }
+  scan.busy=false;
+}
+
+/* ---- フィラメント一覧 ---- */
+async function loadFilaments(){
+  const name=currentUser();
+  if(!name){ state.ownFilaments=[]; state.sharedFilaments=[]; state.sharedWithMe=[]; return; }
+  try{
+    const d = await api({action:'listFilaments', name:name});
+    state.ownFilaments = d.own || [];
+    state.sharedFilaments = d.shared || [];
+    state.sharedWithMe = d.sharedWith || [];
+    if(d.users && d.users.length) state.users = d.users;
+  }catch(e){
+    state.ownFilaments = []; state.sharedFilaments = []; state.sharedWithMe = [];
+  }
+}
+
+/* 選択中の時間枠で、そのフィラメントが他機械で使用中か */
+function isFilamentBusy(fid){
+  const busy = state.filamentBusy[fid];
+  if(!busy || state.selectedHours.length===0) return false;
+  return state.selectedHours.some(h => busy.indexOf(h) >= 0);
+}
+
+/* ---- フィラメント選択（写真つきカード） ---- */
+/* zone: 'own'(自分の) / 'with'(他の人と共同利用) / 'shared'(共用ゾーン) */
+function fpickBadge(f, zone){
+  if(zone==='shared') return '共用';
+  const sh=(f.sharers||[]).filter(Boolean);
+  if(zone==='own'){
+    return sh.length ? `自分（${sh.join('・')}さんと共用）` : '';
+  }
+  // 他の人が持っていて、自分が共同利用者に入っているもの
+  const others=[f.owner].concat(sh.filter(n=>n!==currentUser()));
+  return `${others.join('・')}さんと共用`;
+}
+
+function fpickCard(f, zone){
+  const busy=isFilamentBusy(f.id);
+  const sel=(state.selectedFilamentId===f.id);
+  const img = f.photo
+    ? `<img src="${f.photo}" alt="">`
+    : `<span class="fpick-swatch" style="background:${escapeHtml(colorToCss(f.color))}"></span>`;
+  const badge=fpickBadge(f, zone);
+  return `<div class="fpick${sel?' sel':''}${busy?' busy':''}" ${busy?'':`data-fid="${escapeHtml(f.id)}"`}>`+
+      `<div class="fpick-img">${img}</div>`+
+      (badge?`<span class="fpick-badge">${escapeHtml(badge)}</span>`:'')+
+      `<div class="fpick-name">${escapeHtml(filName(f))}</div>`+
+      (f.note?`<div class="fpick-sub">${escapeHtml(f.note)}</div>`:'')+
+      (busy?`<div class="fpick-busy">同時間<br>使用中</div>`:'')+
+    `</div>`;
+}
+
+function renderFilPicker(){
+  const box=$('filPicker'), hint=$('filPickHint');
+  if(!currentUser()){
+    box.innerHTML=`<div class="empty-note" style="grid-column:1/-1;">先に予約者を選んでください。</div>`;
+    hint.textContent=''; return;
+  }
+  const own=state.ownFilaments, sh=state.sharedFilaments, wi=state.sharedWithMe;
+  if(own.length===0 && sh.length===0 && wi.length===0){
+    box.innerHTML=`<div class="empty-note" style="grid-column:1/-1;">フィラメントが未登録です。「フィラメント管理」から追加してください。</div>`;
+    hint.textContent=''; return;
+  }
+  // 選択済みが使用中になったら解除
+  if(state.selectedFilamentId && isFilamentBusy(state.selectedFilamentId)){
+    state.selectedFilamentId='';
+  }
+  box.innerHTML = own.map(f=>fpickCard(f,'own')).join('')
+                + wi.map(f=>fpickCard(f,'with')).join('')
+                + sh.map(f=>fpickCard(f,'shared')).join('');
+  const cur=filamentById(state.selectedFilamentId);
+  hint.textContent = cur ? `選択中：${filName(cur)}` : 'タップして選んでください';
+
+  box.querySelectorAll('.fpick[data-fid]').forEach(el=>{
+    el.onclick=()=>{
+      state.selectedFilamentId = el.getAttribute('data-fid');
+      renderFilPicker();
+    };
+  });
+}
+
+/* ---- 月の混み状況 ---- */
+async function loadMonth(){
+  $('monthLabel').textContent = state.viewYear+'年 '+(state.viewMonth+1)+'月';
+  $('calLoading').classList.remove('hidden');
+  try{
+    const data = await api({action:'getMonth', month:monthStr(state.viewYear,state.viewMonth)});
+    state.monthCounts=data.counts||{};
+    state.slotsPerDay=data.slotsPerDay||0;
+    state.windowStart=data.windowStart||null;
+    state.windowEnd=data.windowEnd||null;
+    state.serverToday=data.today||null;
+    state.openDates=data.openDates||[];
+  }catch(e){
+    toast(e.message, true);
+  }
+  $('calLoading').classList.add('hidden');
+  renderCalendar();
+}
+
+function changeMonth(delta){
+  state.viewMonth += delta;
+  if(state.viewMonth<0){ state.viewMonth=11; state.viewYear--; }
+  if(state.viewMonth>11){ state.viewMonth=0; state.viewYear++; }
+  loadMonth();
+}
+
+function markFor(dateStr){
+  const count = state.monthCounts[dateStr]||0;
+  const total = state.slotsPerDay||1;
+  const ratio = count/total;
+  if(ratio < 0.34) return {ch:'〇', cls:'mk-free'};
+  if(ratio < 0.67) return {ch:'△', cls:'mk-some'};
+  return {ch:'✕', cls:'mk-full'};
+}
+
+function renderCalendar(){
+  const y=state.viewYear, m=state.viewMonth;
+  const first=new Date(y,m,1).getDay();
+  const days=new Date(y,m+1,0).getDate();
+  const today=state.serverToday||todayLocal();
+  const winEnd=state.windowEnd, winStart=state.windowStart;
+  const openSet=new Set(state.openDates||[]);
+
+  const note=$('windowNote');
+  if(winStart&&winEnd){
+    note.textContent=`基本の受付期間：${mdLabel(winStart)} 〜 ${mdLabel(winEnd)}`;
+    note.classList.remove('hidden');
+  }else{
+    note.classList.add('hidden');
+  }
+
+  let html='';
+  for(let i=0;i<first;i++) html+='<div class="day empty"></div>';
+  for(let d=1;d<=days;d++){
+    const ds=ymd(y,m,d);
+    const isPast = ds < today;
+    const isOpen = openSet.has(ds);
+    const isLocked = !isPast && !isOpen;
+    const isSel = ds===state.selectedDate;
+    let inner=`<span class="num">${d}</span>`;
+    if(isPast){
+      inner+=`<span class="mark" style="color:var(--line)">·</span>`;
+    }else if(isLocked){
+      inner+=`<span class="mark">🔒</span>`;
+    }else{
+      const mk=markFor(ds);
+      inner+=`<span class="mark ${mk.cls}">${mk.ch}</span>`;
+    }
+    const cls = isPast ? ' past' : (isLocked ? ' locked' : '');
+    const selectable = !isPast && isOpen;
+    html+=`<div class="day${cls}${isSel?' sel':''}" `+
+          `${selectable?`data-date="${ds}"`:`data-locked="${isLocked?1:0}"`}>${inner}</div>`;
+  }
+  $('calBody').innerHTML=html;
+  $('calBody').querySelectorAll('.day[data-date]').forEach(el=>{
+    el.onclick=()=>selectDate(el.getAttribute('data-date'));
+  });
+  $('calBody').querySelectorAll('.day[data-locked="1"]').forEach(el=>{
+    el.onclick=()=>toast('この日はまだ予約受付が開放されていません');
+  });
+}
+
+/* ---- 日付選択 ---- */
+function selectDate(ds){
+  if(!state.machines.length){ toast('読み込み中です。少し待ってからお試しください'); return; }
+  state.selectedDate=ds;
+  state.selectedHours=[];
+  renderCalendar();
+  const [yy,mm,dd]=ds.split('-');
+  $('daySectionTitle').textContent = `${Number(mm)}月${Number(dd)}日 の空き状況`;
+  if(!state.selectedMachine) state.selectedMachine=state.machines[0].key;
+  renderMachineTabs();
+  loadDay();
+}
+
+/* ---- 機械タブ ---- */
+function renderMachineTabs(){
+  $('machineTabs').innerHTML = state.machines.map((mc,idx)=>
+    `<button class="tab${mc.key===state.selectedMachine?' sel':''}" data-mc="${mc.key}" data-idx="${idx}">${escapeHtml(mc.label)}</button>`
+  ).join('');
+  $('machineTabs').querySelectorAll('.tab').forEach(el=>{
+    el.onclick=()=>{
+      recordAdminSeq(Number(el.getAttribute('data-idx')));
+      state.selectedMachine=el.getAttribute('data-mc');
+      state.selectedHours=[];
+      renderMachineTabs();
+      if(state.selectedDate) loadDay();
+    };
+  });
+}
+
+/* 隠しコマンド: 機械ボタンを左から B,B,A,C,A（=位置 1,1,0,2,0）でタップ */
+const ADMIN_CODE=[1,1,0,2,0];
+function recordAdminSeq(idx){
+  state.adminSeq.push(idx);
+  if(state.adminSeq.length>ADMIN_CODE.length) state.adminSeq.shift();
+  if(state.adminSeq.length===ADMIN_CODE.length &&
+     state.adminSeq.every((k,i)=>k===ADMIN_CODE[i])){
+    state.adminSeq=[];
+    openAdminGate();
+  }
+}
+
+/* ---- 指定日・機械の予約状況 ---- */
+async function loadDay(){
+  if(!state.selectedDate || !state.selectedMachine) return;
+  $('slotLoading').classList.remove('hidden');
+  $('slotArea').innerHTML='';
+  try{
+    const data = await api({action:'getDay', date:state.selectedDate, machine:state.selectedMachine});
+    state.dayReservations=data.reservations||[];
+    state.filamentBusy=data.filamentBusy||{};
+  }catch(e){
+    toast(e.message, true);
+    state.dayReservations=[]; state.filamentBusy={};
+  }
+  $('slotLoading').classList.add('hidden');
+  renderSlots();
+  renderFilPicker();
+}
+
+/* ---- 時間枠グリッド ---- */
+function renderSlots(){
+  const taken={};
+  state.dayReservations.forEach(r=>{ taken[r.hour]=r; });
+  const today = state.serverToday || todayLocal();
+  const isToday = state.selectedDate === today;
+  const nowMs = Date.now();
+  if(isToday){
+    state.selectedHours = state.selectedHours.filter(h => slotStartMs(state.selectedDate, h) > nowMs);
+  }
+  let html='<div class="slots">';
+  for(let h=state.openHour; h<state.closeHour; h++){
+    const r=taken[h];
+    const sel = state.selectedHours.includes(h);
+    const isPastSlot = isToday && slotStartMs(state.selectedDate, h) <= nowMs;
+    if(r){
+      html+=`<div class="slot taken" data-hour="${h}" data-group="${r.groupId}">`+
+            `<div class="t">${hourLabel(h)}</div>`+
+            `<div class="s">予約済</div>`+
+            `<div class="who">${escapeHtml(r.name||'')}</div>`+
+            (r.filamentLabel?`<div class="fil">${escapeHtml(r.filamentLabel)}</div>`:'')+
+            `</div>`;
+    }else if(isPastSlot){
+      html+=`<div class="slot disabled"><div class="t">${hourLabel(h)}</div><div class="s">終了</div></div>`;
+    }else{
+      html+=`<div class="slot free${sel?' sel':''}" data-hour="${h}">`+
+            `<div class="t">${hourLabel(h)}</div>`+
+            `<div class="s">${sel?'選択中':'空き'}</div></div>`;
+    }
+  }
+  html+='</div>';
+  html+=`<div class="hint">空き枠をタップで選択（連続${state.maxHours}枠まで）。予約済み枠をタップし、予約時のパスワードでキャンセルできます。</div>`;
+  $('slotArea').innerHTML=html;
+
+  $('slotArea').querySelectorAll('.slot.free').forEach(el=>{
+    el.onclick=()=>toggleHour(Number(el.getAttribute('data-hour')));
+  });
+  $('slotArea').querySelectorAll('.slot.taken').forEach(el=>{
+    el.onclick=()=>openCancelModal(el.getAttribute('data-group'));
+  });
+
+  updateReserveSection();
+}
+
+/* ---- 枠の選択/解除 ---- */
+function toggleHour(h){
+  const cur=state.selectedHours.slice();
+  const idx=cur.indexOf(h);
+  if(idx>=0){
+    cur.splice(idx,1);
+  }else{
+    if(cur.length===0){
+      cur.push(h);
+    }else if(cur.length>=state.maxHours){
+      toast(`連続予約は最大${state.maxHours}時間までです`, true);
+      return;
+    }else{
+      const min=Math.min(...cur), max=Math.max(...cur);
+      if(h===min-1 || h===max+1){
+        cur.push(h);
+      }else{
+        toast('連続した枠のみ2つ選べます。選び直しました');
+        cur.length=0; cur.push(h);
+      }
+    }
+  }
+  state.selectedHours=cur.sort((a,b)=>a-b);
+  renderSlots();
+  renderFilPicker();
+}
+
+/* ---- 予約確定セクション ---- */
+function updateReserveSection(){
+  const sec=$('reserveSection');
+  if(state.selectedHours.length===0){
+    sec.classList.add('hidden'); return;
+  }
+  sec.classList.remove('hidden');
+  const [yy,mm,dd]=state.selectedDate.split('-');
+  $('reserveSummary').innerHTML =
+    `<b>${Number(mm)}月${Number(dd)}日</b> ／ <b>${escapeHtml(machineLabel(state.selectedMachine))}</b><br>`+
+    `<b>${rangeLabel(state.selectedHours)}</b>（${state.selectedHours.length}時間）`;
+}
+
+/* ---- 予約実行 ---- */
+async function doReserve(){
+  const name=currentUser();
+  const pass=($('passInput').value||'');
+  const fid=state.selectedFilamentId;
+  if(!name){ toast('予約者を選んでください', true); return; }
+  if(state.selectedHours.length===0){ toast('時間枠を選んでください', true); return; }
+  if(!fid){ toast('フィラメントを選んでください', true); return; }
+  if(!pass){ toast('キャンセル用パスワードを入力してください', true); $('passInput').focus(); return; }
+
+  const btn=$('reserveBtn');
+  btn.disabled=true; btn.textContent='予約中…';
+  try{
+    await api({
+      action:'reserve',
+      date:state.selectedDate,
+      machine:state.selectedMachine,
+      hours:state.selectedHours,
+      name:name,
+      password:pass,
+      filamentId:fid
+    });
+    $('passInput').value='';
+    toast('予約しました');
+    state.selectedHours=[];
+    state.selectedFilamentId='';
+    await loadDay();
+    await loadMonth();
+    refreshQuota();
+  }catch(e){
+    toast(e.message, true);
+    await loadDay();
+  }
+  btn.disabled=false; btn.textContent='予約する';
+}
+
+/* ---- キャンセル ---- */
+let cancelTargetGroup=null;
+
+function rangeForGroup(groupId){
+  const hs=state.dayReservations.filter(x=>x.groupId===groupId).map(x=>x.hour);
+  return hs.length ? rangeLabel(hs) : '';
+}
+
+function openCancelModal(groupId){
+  const r=state.dayReservations.find(x=>x.groupId===groupId);
+  cancelTargetGroup=groupId;
+  $('cancelInfo').innerHTML =
+    `${escapeHtml(r?r.name:'')} さんの予約<br>`+
+    `${escapeHtml(machineLabel(state.selectedMachine))} ／ ${rangeForGroup(groupId)}`+
+    (r&&r.filamentLabel?`<br>フィラメント：${escapeHtml(r.filamentLabel)}`:'');
+  $('cancelPass').value='';
+  $('cancelModal').classList.remove('hidden');
+  setTimeout(()=>$('cancelPass').focus(),50);
+}
+
+function closeCancelModal(){
+  $('cancelModal').classList.add('hidden');
+  cancelTargetGroup=null;
+}
+
+async function execCancel(){
+  if(!cancelTargetGroup) return;
+  const pass=($('cancelPass').value||'');
+  if(!pass){ toast('パスワードを入力してください', true); $('cancelPass').focus(); return; }
+  const btn=$('cancelModalExec');
+  btn.disabled=true; btn.textContent='処理中…';
+  try{
+    await api({action:'cancel', groupId:cancelTargetGroup, password:pass});
+    toast('キャンセルしました');
+    closeCancelModal();
+    await loadDay();
+    await loadMonth();
+    refreshQuota();
+  }catch(e){
+    toast(e.message, true);
+  }
+  btn.disabled=false; btn.textContent='キャンセルする';
+}
+
+/* ============================================================
+   フィラメント管理
+   ============================================================ */
+async function openFilModal(){
+  const name=currentUser();
+  if(!name){
+    toast('先に予約者を選んでください', true); return;
+  }
+  $('ownFilTitle').textContent = `「${name}」さんのフィラメント`;
+  $('filFormArea').innerHTML='';
+  $('filModal').classList.remove('hidden');
+  // 一覧がまだ無ければ取得してから描画
+  if(state.ownFilaments.length===0 && state.sharedFilaments.length===0){
+    $('ownFilList').innerHTML='<div class="loading"><span class="spin"></span>読み込み中…</div>';
+    $('sharedFilList').innerHTML='';
+    await loadFilaments();
+  }
+  renderFilLists();
+}
+
+function filItemHtml(f, zone){
+  const meta=[f.material,f.color,f.note].filter(Boolean).join(' / ');
+  const sh=(f.sharers||[]).filter(Boolean);
+  const thumb = f.photo
+    ? `<div class="fil-thumb"><img src="${f.photo}" alt=""></div>`
+    : `<div class="fil-thumb"><span class="fil-chip" style="background:${escapeHtml(colorToCss(f.color))}"></span></div>`;
+  return `<div class="fil-item">`+
+    thumb+
+    `<div class="fil-body">`+
+      `<div class="fil-name">${escapeHtml(filName(f))}</div>`+
+      (meta?`<div class="fil-meta">${escapeHtml(meta)}</div>`:'')+
+      (sh.length?`<div class="fil-meta" style="color:var(--accent);">共同利用：${escapeHtml(sh.join('・'))}</div>`:'')+
+    `</div>`+
+    `<div class="fil-acts">`+
+      `<button class="icon-btn" data-edit="${escapeHtml(f.id)}" data-zone="${zone}">編集</button>`+
+      `<button class="icon-btn del" data-del="${escapeHtml(f.id)}">削除</button>`+
+    `</div></div>`;
+}
+
+function renderFilLists(){
+  const own=$('ownFilList'), sh=$('sharedFilList');
+  own.innerHTML = state.ownFilaments.length
+    ? state.ownFilaments.map(f=>filItemHtml(f,'own')).join('')
+    : `<div class="empty-note">まだ登録がありません。</div>`;
+  sh.innerHTML = state.sharedFilaments.length
+    ? state.sharedFilaments.map(f=>filItemHtml(f,'shared')).join('')
+    : `<div class="empty-note">まだ登録がありません。</div>`;
+
+  $('filModal').querySelectorAll('[data-edit]').forEach(el=>{
+    el.onclick=()=>{
+      const f=filamentById(el.getAttribute('data-edit'));
+      if(f) showFilForm({owner:el.getAttribute('data-zone'), filament:f});
+    };
+  });
+  $('filModal').querySelectorAll('[data-del]').forEach(el=>{
+    el.onclick=()=>deleteFilament(el.getAttribute('data-del'));
+  });
+}
+
+/* 追加・編集フォーム */
+let formPhoto = null;      // 現在フォームで保持している写真(dataURL)。null=未変更
+let formPhotoTouched=false; // 写真を触ったか（編集時に既存を維持するか判定）
+let formSharers=[];         // 共同利用者の名前一覧
+
+function showFilForm(opt){
+  const f = opt.filament || null;
+  const isShared = opt.owner === 'shared';
+  formPhoto = f ? (f.photo || '') : '';
+  formPhotoTouched = false;
+  formSharers = f ? (f.sharers || []).slice() : [];
+
+  $('filFormArea').innerHTML =
+    `<div class="fil-form">`+
+      `<h4 style="margin:0 0 10px;font-size:13px;color:var(--accent);">`+
+        `${f?'編集':'追加'}：${isShared?'共用':'自分の'}フィラメント</h4>`+
+      `<div class="grid2">`+
+        `<div class="field"><label>種類 <span class="req">*</span></label>`+
+          `<input id="filMaterial" type="text" placeholder="PLA / ABS / PETG など" value="${f?escapeHtml(f.material):''}"></div>`+
+        `<div class="field"><label>色 <span class="req">*</span></label>`+
+          `<input id="filColor" type="text" placeholder="白 / 黒 / #ff0000 など" value="${f?escapeHtml(f.color):''}"></div>`+
+      `</div>`+
+      `<div class="field"><label>メモ（任意）</label>`+
+        `<input id="filNote" type="text" placeholder="メーカー名・残量など" value="${f?escapeHtml(f.note):''}"></div>`+
+      (isShared ? '' :
+        `<div class="field"><label>共同利用者（任意）</label>`+
+          `<div class="sharer-row">`+
+            `<select id="sharerSelect"></select>`+
+            `<button class="btn ghost sm" id="sharerAddBtn">追加</button>`+
+          `</div>`+
+          `<div id="sharerChips" class="sharer-chips"></div>`+
+          `<div class="hint">選んだ人も、このフィラメントを予約で使えるようになります。</div>`+
+        `</div>`)+
+      `<div class="field"><label>写真（任意）</label>`+
+        `<div class="photo-row">`+
+          `<div class="photo-prev" id="photoPrev"></div>`+
+          `<div class="photo-btns">`+
+            `<button class="btn ghost sm" id="photoPickBtn">写真を選ぶ</button>`+
+            `<button class="btn ghost sm" id="photoClearBtn">写真を削除</button>`+
+          `</div>`+
+        `</div>`+
+        `<input id="photoInput" type="file" accept="image/*" class="hidden">`+
+        `<div class="hint" id="photoHint">スマホならその場で撮影もできます。自動で小さく圧縮して保存します。</div>`+
+      `</div>`+
+      `<div class="modal-actions">`+
+        `<button class="btn ghost" id="filFormCancel">やめる</button>`+
+        `<button class="btn" id="filFormSave">${f?'保存':'追加'}</button>`+
+      `</div>`+
+    `</div>`;
+
+  renderPhotoPreview();
+  if(!isShared){
+    renderSharerUI();
+    $('sharerAddBtn').onclick=()=>{
+      const v=$('sharerSelect').value;
+      if(!v){ toast('追加する人を選んでください', true); return; }
+      if(formSharers.indexOf(v)<0) formSharers.push(v);
+      renderSharerUI();
+    };
+  }
+  $('photoPickBtn').onclick=()=>$('photoInput').click();
+  $('photoClearBtn').onclick=()=>{ formPhoto=''; formPhotoTouched=true; renderPhotoPreview(); };
+  $('photoInput').onchange=onPhotoPicked;
+  $('filFormCancel').onclick=()=>{ $('filFormArea').innerHTML=''; };
+  $('filFormSave').onclick=()=>saveFilament(f? f.id : null, isShared);
+  $('filMaterial').focus();
+}
+
+/* 共同利用者の選択UI（プルダウン＋追加済みチップ） */
+function renderSharerUI(){
+  const sel=$('sharerSelect'), chips=$('sharerChips');
+  if(!sel || !chips) return;
+  const me=currentUser();
+  const cands=state.users.filter(u=>u!==me && formSharers.indexOf(u)<0);
+  sel.innerHTML = cands.length
+    ? '<option value="">名前を選ぶ…</option>'+cands.map(u=>`<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('')
+    : '<option value="">追加できる人がいません</option>';
+  chips.innerHTML = formSharers.length
+    ? formSharers.map(u=>
+        `<span class="chip">${escapeHtml(u)}<button class="chip-x" data-rm="${escapeHtml(u)}">×</button></span>`).join('')
+    : `<span class="hint" style="margin:0;">まだ登録されていません（自分だけが使えます）</span>`;
+  chips.querySelectorAll('[data-rm]').forEach(el=>{
+    el.onclick=()=>{
+      formSharers=formSharers.filter(u=>u!==el.getAttribute('data-rm'));
+      renderSharerUI();
+    };
+  });
+}
+
+function renderPhotoPreview(){
+  const p=$('photoPrev');
+  if(!p) return;
+  p.innerHTML = formPhoto ? `<img src="${formPhoto}" alt="">` : 'なし';
+}
+
+/* 画像を縮小してdataURL化（容量を抑えてスプレッドシートに収める） */
+function fileToThumb(file, maxPx, quality){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      let w=img.width, h=img.height;
+      const scale=Math.min(1, maxPx/Math.max(w,h));
+      w=Math.max(1,Math.round(w*scale)); h=Math.max(1,Math.round(h*scale));
+      const cv=document.createElement('canvas');
+      cv.width=w; cv.height=h;
+      const ctx=cv.getContext('2d');
+      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+      resolve(cv.toDataURL('image/jpeg', quality));
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error('画像を読み込めませんでした')); };
+    img.src=url;
+  });
+}
+
+async function onPhotoPicked(e){
+  const file=e.target.files && e.target.files[0];
+  if(!file) return;
+  const hint=$('photoHint');
+  hint.textContent='画像を処理中…';
+  try{
+    // 大きすぎる場合は段階的に縮めて 40000 文字以内に収める
+    let data=null;
+    const tries=[[260,0.68],[200,0.6],[160,0.55],[120,0.5]];
+    for(const [px,q] of tries){
+      data=await fileToThumb(file, px, q);
+      if(data.length<=40000) break;
+    }
+    if(!data || data.length>40000){
+      hint.textContent='この画像は大きすぎて保存できません。別の写真を選んでください。';
+      return;
+    }
+    formPhoto=data; formPhotoTouched=true;
+    renderPhotoPreview();
+    hint.textContent='写真を読み込みました。';
+  }catch(err){
+    hint.textContent='画像を読み込めませんでした。';
+  }finally{
+    e.target.value='';
+  }
+}
+
+async function saveFilament(id, isShared){
+  const material=($('filMaterial').value||'').trim();
+  const color=($('filColor').value||'').trim();
+  const note=($('filNote').value||'').trim();
+  if(!material){ toast('種類を入力してください', true); $('filMaterial').focus(); return; }
+  if(!color){ toast('色を入力してください', true); $('filColor').focus(); return; }
+
+  const payload={ material:material, color:color, note:note };
+  if(!isShared) payload.sharers = formSharers;
+  // 新規は常に写真を送る。編集は触ったときだけ送る（未変更なら既存を維持）
+  if(!id || formPhotoTouched) payload.photo = formPhoto || '';
+
+  const btn=$('filFormSave');
+  btn.disabled=true; btn.textContent='保存中…';
+  try{
+    if(id){
+      await api(Object.assign({action:'updateFilament', id:id}, payload));
+    }else{
+      await api(Object.assign({action:'addFilament', owner: isShared ? '' : currentUser()}, payload));
+    }
+    $('filFormArea').innerHTML='';
+    await loadFilaments();
+    renderFilLists();
+    renderFilPicker();
+    toast(id?'保存しました':'追加しました');
+  }catch(e){
+    toast(e.message, true);
+    btn.disabled=false; btn.textContent=id?'保存':'追加';
+  }
+}
+
+async function deleteFilament(id){
+  const f=filamentById(id);
+  if(!confirm(`「${f?filName(f):''}」を削除しますか？`)) return;
+  try{
+    await api({action:'deleteFilament', id:id});
+    await loadFilaments();
+    renderFilLists();
+    renderFilPicker();
+    toast('削除しました');
+  }catch(e){
+    toast(e.message, true);
+  }
+}
+
+/* ============================================================
+   管理者ページ
+   ============================================================ */
+function openAdminGate(){
+  $('adminPass').value='';
+  $('adminGate').classList.remove('hidden');
+  setTimeout(()=>$('adminPass').focus(),50);
+}
+
+async function submitAdminGate(){
+  const pw=($('adminPass').value||'');
+  if(!pw){ toast('パスワードを入力してください', true); return; }
+  const btn=$('adminGateExec');
+  btn.disabled=true; btn.textContent='確認中…';
+  try{
+    const d=await api({action:'adminData', password:pw});
+    state.adminPass=pw;
+    $('adminGate').classList.add('hidden');
+    renderAdminList(d);
+    $('adminModal').classList.remove('hidden');
+  }catch(e){
+    toast(e.message, true);
+  }
+  btn.disabled=false; btn.textContent='開く';
+}
+
+function renderAdminList(d){
+  $('adminDefault').textContent = d.defaultMax;
+  const mh=$('adminMaxHours');
+  mh.value = d.maxHours;
+  mh.setAttribute('data-orig', String(d.maxHours));
+  mh.classList.remove('changed');
+  mh.oninput=()=>{ mh.classList.toggle('changed', mh.value !== mh.getAttribute('data-orig')); };
+  const rows = (d.users||[]).map(u=>
+    `<tr>`+
+      `<td class="admin-name">${escapeHtml(u.name)}</td>`+
+      `<td class="num">${u.totalHours}時間</td>`+
+      `<td class="num">${u.activeSlots}枠</td>`+
+      `<td><input class="admin-lim" type="number" min="0" inputmode="numeric" `+
+        `data-name="${escapeHtml(u.name)}" data-orig="${u.maxSlots}" value="${u.maxSlots}"></td>`+
+    `</tr>`
+  ).join('');
+  $('adminList').innerHTML =
+    (d.users&&d.users.length)
+    ? `<table class="admin-table"><thead><tr>`+
+        `<th>予約者</th><th style="text-align:right;">累計</th>`+
+        `<th style="text-align:right;">使用中</th><th>上限(枠)</th>`+
+      `</tr></thead><tbody>${rows}</tbody></table>`
+    : `<div class="empty-note">usersシートに予約者が登録されていません。</div>`;
+
+  $('adminList').querySelectorAll('.admin-lim').forEach(el=>{
+    el.oninput=()=>{
+      el.classList.toggle('changed', el.value !== el.getAttribute('data-orig'));
+    };
+  });
+
+  // 予約日の個別設定
+  state.adminOverrides = d.overrides || {};
+  if(state.serverToday) $('ovDate').min = state.serverToday;
+  renderOvList();
+}
+
+/* 個別設定の一覧 */
+function renderOvList(){
+  const ov=state.adminOverrides||{};
+  const keys=Object.keys(ov).filter(k=>ov[k]).sort();
+  const el=$('ovList');
+  if(keys.length===0){
+    el.innerHTML='<div class="empty-note">個別設定はありません（すべて自動）。</div>';
+    return;
+  }
+  el.innerHTML=keys.map(dt=>{
+    const mode=ov[dt];
+    const label=mode==='open'?'解放中':'ロック中';
+    return `<div class="ov-item">`+
+      `<span class="ov-date">${escapeHtml(dt)}</span>`+
+      `<span class="ov-mode ${mode}">${label}</span>`+
+      `<button class="icon-btn" data-ovauto="${escapeHtml(dt)}">自動に戻す</button>`+
+    `</div>`;
+  }).join('');
+  el.querySelectorAll('[data-ovauto]').forEach(b=>{
+    b.onclick=()=>applyOverride('auto', b.getAttribute('data-ovauto'));
+  });
+}
+
+/* 解放/再ロック/自動に戻す を適用 */
+async function applyOverride(mode, dateArg){
+  const date = dateArg || $('ovDate').value;
+  if(!date){ toast('日付を選んでください', true); return; }
+  try{
+    const d=await api({action:'setDateOverride', password:state.adminPass, date:date, mode:mode});
+    state.adminOverrides = d.overrides || {};
+    renderOvList();
+    toast(mode==='auto'?'自動に戻しました':(mode==='open'?'解放しました':'再ロックしました'));
+    await loadMonth();  // カレンダーにも反映
+    if(!dateArg) $('ovDate').value='';
+  }catch(e){
+    toast(e.message, true);
+  }
+}
+
+async function saveAdminLimits(){
+  const payload={action:'setUserLimits', password:state.adminPass, limits:{}};
+  let changed=false;
+  $('adminList').querySelectorAll('.admin-lim').forEach(el=>{
+    const name=el.getAttribute('data-name');
+    const v=el.value.trim();
+    if(v !== el.getAttribute('data-orig')){
+      payload.limits[name]= v==='' ? 0 : Number(v);
+      changed=true;
+    }
+  });
+  // 連続予約数
+  const mh=$('adminMaxHours');
+  if(mh.value.trim() !== mh.getAttribute('data-orig')){
+    const n=Number(mh.value);
+    if(!n || n<1){ toast('連続予約数は1以上で入力してください', true); return; }
+    payload.maxHours=n;
+    changed=true;
+  }
+  if(!changed){ toast('変更はありません'); return; }
+  const btn=$('adminSaveBtn');
+  btn.disabled=true; btn.textContent='保存中…';
+  try{
+    await api(payload);
+    toast('保存しました');
+    // 再取得して最新表示に
+    const d=await api({action:'adminData', password:state.adminPass});
+    renderAdminList(d);
+    // 連続予約数はこのセッションにも即反映
+    if(d.maxHours) state.maxHours=d.maxHours;
+    refreshQuota();
+  }catch(e){
+    toast(e.message, true);
+  }
+  btn.disabled=false; btn.textContent='保存';
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
