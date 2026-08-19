@@ -423,13 +423,8 @@
       <div class="reticle"></div>
     </div>
     <div class="scan-status" id="scanStatus">カメラを起動しています…</div>
-    <div class="field">
-      <label for="scanManual">読み取れないときは合言葉を直接入力</label>
-      <input id="scanManual" type="text" placeholder="QRの下に書かれた文字列" autocomplete="off">
-    </div>
     <div class="modal-actions">
       <button class="btn ghost" id="scanModalClose">閉じる</button>
-      <button class="btn" id="scanManualExec">送信</button>
     </div>
   </div>
 </div>
@@ -482,7 +477,7 @@
 /* ============================================================
    設定: デプロイした GAS ウェブアプリの URL(/exec) をここに貼る
    ============================================================ */
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbw9pZqRJ_CsvKjrc2Xz-EsG4HiK5zbFExavEYO9YntWVLatOXW7zjGKwBK_iXnRvZRutA/exec';
+const GAS_URL = 'ここにGASウェブアプリのURL(/exec)を貼る';
 
 /* ---- API 呼び出し ---- */
 async function api(payload){
@@ -592,8 +587,6 @@ async function init(){
   $('openScanBtn').onclick=openScanModal;
   $('scanModalClose').onclick=closeScanModal;
   $('scanModal').addEventListener('click', e=>{ if(e.target.id==='scanModal') closeScanModal(); });
-  $('scanManualExec').onclick=()=>submitCheckin(($('scanManual').value||'').trim());
-  $('scanManual').addEventListener('keydown', e=>{ if(e.key==='Enter') $('scanManualExec').click(); });
   $('ovOpenBtn').onclick=()=>applyOverride('open');
   $('ovLockBtn').onclick=()=>applyOverride('lock');
 
@@ -692,6 +685,28 @@ const JSQR_CDN = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
 
 const scan = { stream:null, detector:null, raf:0, busy:false, need:CHECKIN_NEED };
 
+/* 現在地。研究室にいるかどうかの判定はサーバ側で行う（座標は公開ファイルに書かない）。 */
+const geo = { pos:null, at:0 };
+function getPosition(maxAgeMs){
+  return new Promise((resolve,reject)=>{
+    if(geo.pos && (Date.now()-geo.at) < maxAgeMs) return resolve(geo.pos);
+    if(!navigator.geolocation) return reject(new Error('この端末では位置情報を取得できません。'));
+    navigator.geolocation.getCurrentPosition(
+      p=>{
+        geo.pos={ lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy };
+        geo.at=Date.now();
+        resolve(geo.pos);
+      },
+      e=>{
+        if(e.code===1) reject(new Error('位置情報の使用を許可してください（設定 → Safari → 位置情報）。'));
+        else if(e.code===3) reject(new Error('位置情報の取得に時間がかかっています。もう一度お試しください。'));
+        else reject(new Error('位置情報を取得できませんでした。'));
+      },
+      { enableHighAccuracy:true, timeout:15000, maximumAge:0 }
+    );
+  });
+}
+
 async function refreshCheckin(){
   const name=currentUser();
   const box=$('checkinBox');
@@ -735,13 +750,15 @@ function scanStatus(text, isErr){
 
 async function openScanModal(){
   if(!currentUser()){ toast('先に予約者を選んでください。', true); return; }
-  $('scanManual').value='';
   $('scanModal').classList.remove('hidden');
   scan.busy=false;
   scanStatus('カメラを起動しています…');
 
+  // 位置情報は時間がかかるので、カメラと並行して先に要求しておく
+  getPosition(120000).catch(()=>{});
+
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    scanStatus('この端末ではカメラを使えません。下の欄に合言葉を入力してください。', true);
+    scanStatus('この端末ではカメラを使えません。', true);
     return;
   }
   try{
@@ -749,7 +766,7 @@ async function openScanModal(){
       video:{ facingMode:{ ideal:'environment' } }, audio:false
     });
   }catch(e){
-    scanStatus('カメラを使えませんでした（権限またはHTTPS未対応）。下の欄に合言葉を入力してください。', true);
+    scanStatus('カメラを使えませんでした（権限またはHTTPS未対応）。', true);
     return;
   }
   const v=$('scanVideo');
@@ -764,7 +781,7 @@ async function openScanModal(){
     }
     if(!scan.detector) await loadJsQR();
   }catch(e){
-    scanStatus('読み取り機能を用意できませんでした。合言葉を入力してください。', true);
+    scanStatus('読み取り機能を用意できませんでした。通信環境を確認してください。', true);
     return;
   }
   scanStatus('QRコードを枠内に写してください。');
@@ -828,13 +845,26 @@ function closeScanModal(){
 
 async function submitCheckin(token){
   if(scan.busy) return;
-  if(!token){ toast('合言葉を入力してください。', true); return; }
+  if(!token){ return; }
   const name=currentUser();
   if(!name){ toast('先に予約者を選んでください。', true); return; }
   scan.busy=true;
+
+  let pos=null;
+  try{
+    scanStatus('現在地を確認中…');
+    pos = await getPosition(120000);
+  }catch(e){
+    retryScan(e.message);
+    return;
+  }
+
   scanStatus('確認中…');
   try{
-    const d=await api({action:'checkin', name:name, token:token});
+    const d=await api({
+      action:'checkin', name:name, token:token,
+      lat:pos.lat, lng:pos.lng, acc:pos.acc
+    });
     stopScan();
     $('scanModal').classList.add('hidden');
     if(d.granted){
@@ -849,17 +879,22 @@ async function submitCheckin(token){
     $('checkinBox').classList.remove('hidden');
     await refreshQuota();
   }catch(e){
-    scanStatus(e.message || 'チェックインに失敗しました。', true);
-    setTimeout(()=>{
-      scan.busy=false;
-      if(scan.stream){
-        scanStatus('QRコードを枠内に写してください。');
-        scan.raf=requestAnimationFrame(scanTick);
-      }
-    }, 1500);
+    retryScan(e.message || 'チェックインに失敗しました。');
     return;
   }
   scan.busy=false;
+}
+
+/* 失敗メッセージを出してから読み取りを再開する */
+function retryScan(msg){
+  scanStatus(msg, true);
+  setTimeout(()=>{
+    scan.busy=false;
+    if(scan.stream){
+      scanStatus('QRコードを枠内に写してください。');
+      scan.raf=requestAnimationFrame(scanTick);
+    }
+  }, 2500);
 }
 
 /* ---- フィラメント一覧 ---- */
